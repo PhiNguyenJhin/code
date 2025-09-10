@@ -22,9 +22,6 @@ from __future__ import annotations
 import os, sys, json, enum, datetime as dt
 from typing import List, Optional, Any, Dict
 
-# ------------------------
-# Config / Settings
-# ------------------------
 from pydantic import BaseSettings, AnyUrl
 
 class Settings(BaseSettings):
@@ -55,9 +52,6 @@ def get_database_url() -> str:
         return f"mssql+pyodbc://{settings.SQLSERVER_USER}:{settings.SQLSERVER_PASS}@{settings.SQLSERVER_HOST}/{settings.SQLSERVER_DB}?driver={settings.SQLSERVER_DRIVER}"
     return settings.SQLITE_URL
 
-# ------------------------
-# FastAPI & deps
-# ------------------------
 from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
@@ -66,9 +60,6 @@ from pydantic import BaseModel, EmailStr, Field
 app = FastAPI(title=settings.PROJECT_NAME, version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-# ------------------------
-# Database (SQLAlchemy)
-# ------------------------
 from sqlalchemy import (
     create_engine, Column, Integer, String, DateTime, Boolean, ForeignKey, Text, Enum, Float
 )
@@ -88,9 +79,6 @@ def get_db():
     finally:
         db.close()
 
-# ------------------------
-# Security (hash + JWT)
-# ------------------------
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 
@@ -119,9 +107,6 @@ def decode_access_token(token: str) -> dict:
     except JWTError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token invalid or expired")
 
-# ------------------------
-# RBAC Roles
-# ------------------------
 class Role(str, enum.Enum):
     admin = "admin"
     hr_manager = "hr_manager"
@@ -129,9 +114,6 @@ class Role(str, enum.Enum):
     mentor = "mentor"
     intern = "intern"
 
-# ------------------------
-# Models (SQLAlchemy)
-# ------------------------
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
@@ -259,9 +241,6 @@ class SettingKV(Base):
     key = Column(String, primary_key=True)
     value = Column(Text)
 
-# ------------------------
-# Schemas (Pydantic)
-# ------------------------
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -432,9 +411,6 @@ class SettingIn(BaseModel):
     key: str
     value: Any
 
-# ------------------------
-# Repositories (DB boundary)
-# ------------------------
 class UserRepo:
     def __init__(self, db: Session): self.db = db
     def create(self, data: UserCreate) -> User:
@@ -579,9 +555,6 @@ class SettingsRepo:
         kv = self.db.query(SettingKV).get(key)
         return json.loads(kv.value) if kv else default
 
-# ------------------------
-# Services (business logic)
-# ------------------------
 class NotificationService:
     def send_email(self, to: str, subject: str, body: str):
         # Mocked: print to console; replace with real provider in production
@@ -611,9 +584,6 @@ class ReportingService:
             "avg_performance_by_intern": averages,
         }
 
-# ------------------------
-# Auth helpers / dependencies
-# ------------------------
 def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
     try:
         payload = decode_access_token(token)
@@ -631,10 +601,6 @@ def require_roles(*roles: Role):
             raise HTTPException(status_code=403, detail="Insufficient role")
         return current_user
     return dep
-
-# ------------------------
-# Routers / Endpoints
-# ------------------------
 
 # Auth
 @app.post("/auth/register", response_model=UserOut)
@@ -783,16 +749,10 @@ def seed_data(db: Session = Depends(get_db)):
     ensure("intern@ims.local", "Intern", Role.intern)
     return {"ok": True}
 
-# ------------------------
-# Startup: Create all tables
-# ------------------------
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
 
-# ------------------------
-# Selenium Smoke Test (helper)
-# ------------------------
 def selenium_smoke_test(base_url: str = "http://localhost:8000"):
     """
     Run a quick browser-based smoke test that:
@@ -854,9 +814,6 @@ def selenium_smoke_test(base_url: str = "http://localhost:8000"):
     finally:
         driver.quit()
 
-# ------------------------
-# If run as script: start uvicorn
-# ------------------------
 if __name__ == "__main__":
     import uvicorn
     # allow running optional smoke test via arg
@@ -865,9 +822,6 @@ if __name__ == "__main__":
         print("Run uvicorn in another terminal, then call: python main.py smoke")
         sys.exit(0)
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-# ------------------------
-# Append Child API router trực tiếp gốc (root) vào app
-# ------------------------
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -904,6 +858,4 @@ def run_action(body: ChildActionIn = Body(...), db: Session = Depends(get_db)):
             raise HTTPException(400, f"SQL error: {e}")
     raise HTTPException(400, f"Unknown action: {body.action}")
 
-
-# mount router trực tiếp
 app.include_router(child_router)
